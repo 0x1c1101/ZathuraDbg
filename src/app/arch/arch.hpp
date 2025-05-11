@@ -1,6 +1,7 @@
 #ifndef ZATHURA_ARCH_HPP
 #define ZATHURA_ARCH_HPP
 #include <unicorn/unicorn.h>
+#include <set>
 #include <string>
 #include "x86.hpp"
 #include "arm.hpp"
@@ -60,7 +61,7 @@ struct codeInformationT{
     const char* archStr;
 };
 
-extern std::vector<std::string> icArchStr;
+extern std::unordered_set<std::string> icArchStr;
 extern std::vector<std::string> defaultShownRegs;
 extern codeInformationT codeInformation;
 extern bool initArch();
@@ -73,6 +74,6 @@ extern bool (*isRegisterValid)(const std::string&);
 extern size_t regNameToConstant(const std::string &name);
 extern std::unordered_map<std::string, size_t> regInfoMap;
 extern void (*modeUpdateCallback)(int arch);
-extern std::vector<std::string> archInstructions;
+extern std::unordered_set<std::string> archInstructions;
 extern void onArchChange();
 #endif //ZATHURA_ARCH_HPP

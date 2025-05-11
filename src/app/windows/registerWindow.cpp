@@ -86,13 +86,16 @@ void updateRegs(bool useTempContext){
         }
     }
 
+    // Create a temporary map to store updates
+    tsl::ordered_map<std::string, std::string> tempMap;
+
     for (auto [name, value]: registerValueMap) {
-        if (!isRegisterValid((name))){
+        const std::string lowerName = toLowerCase(name);
+        if (!isRegisterValid(lowerName)){
             continue;
         }
 
-        registerValueInfoT val = getRegister(toLowerCase(name));
-
+        registerValueInfoT val = getRegister(lowerName);
         auto const [isRegValid, registerValue] = val;
 
         if (isRegValid){
@@ -105,25 +108,28 @@ void updateRegs(bool useTempContext){
                 }
             }
             else{
-                if (name.contains('[') && name.contains(']') && name.contains(':')){
-                    name =  name.substr(0, name.find_first_of('['));
+                const std::string baseName = lowerName.contains('[') ? lowerName.substr(0, lowerName.find_first_of('[')) : lowerName;
+
+                if (regInfoMap[baseName] <= 64 && (val.registerValueUn.info.isFloatReg || val.registerValueUn.info.isDoubleReg))
+                {
+                    hex << std::hex << registerValue.floatVal;
                 }
-                if (regInfoMap[(name)] <= 64){
+                else if (regInfoMap[baseName] <= 64){
                     hex << "0x";
                     hex << std::hex << registerValue.eightByteVal;
                 }
-                else if (regInfoMap[(name)]== 128 || regInfoMap[(name)] == 256 || regInfoMap[(name)] == 512){
+                else if (regInfoMap[baseName] == 128 || regInfoMap[baseName] == 256 || regInfoMap[baseName] == 512){
                     if (registerValue.info.is128bit){
                         if (!use32BitLanes){
-                            if (registerValueMap.contains(name + reg64BitLaneStrs[0])) {
+                            if (registerValueMap.contains(baseName + reg64BitLaneStrs[0])) {
                                 hex << std::to_string(registerValue.info.arrays.doubleArray[0]);
-                                registerValueMap[name + reg64BitLaneStrs[0]] = hex.str();
+                                tempMap[baseName + reg64BitLaneStrs[0]] = hex.str();
                                 hex.str("");
                                 hex.clear();
                             }
-                            if (registerValueMap.contains(name + reg64BitLaneStrs[1])) {
+                            if (registerValueMap.contains(baseName + reg64BitLaneStrs[1])) {
                                 hex << std::to_string(registerValue.info.arrays.doubleArray[1]);
-                                registerValueMap[name + reg64BitLaneStrs[1]] = hex.str();
+                                tempMap[baseName + reg64BitLaneStrs[1]] = hex.str();
                                 hex.str("");
                                 hex.clear();
                             }
@@ -131,8 +137,8 @@ void updateRegs(bool useTempContext){
                         }
                         else{
                             for (int i = 0; i < 4; i++){
-                                if (registerValueMap.contains(name + reg32BitLaneStrs[i])) {
-                                    registerValueMap[name + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
+                                if (registerValueMap.contains(baseName + reg32BitLaneStrs[i])) {
+                                    tempMap[baseName + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
                                 }
                             }
                             hex.str("");
@@ -143,8 +149,8 @@ void updateRegs(bool useTempContext){
                     else if (registerValue.info.is256bit){
                         if (!use32BitLanes){
                             for (int i = 0; i < 4; i++){
-                                if (registerValueMap.contains(name + reg64BitLaneStrs[i])) {
-                                    registerValueMap[name + reg64BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.doubleArray[i]);
+                                if (registerValueMap.contains(baseName + reg64BitLaneStrs[i])) {
+                                    tempMap[baseName + reg64BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.doubleArray[i]);
                                 }
                             }
                             hex.str("");
@@ -153,8 +159,8 @@ void updateRegs(bool useTempContext){
                         }
                         else{
                             for (int i = 0; i < 8; i++){
-                                if (registerValueMap.contains(name + reg32BitLaneStrs[i])) {
-                                    registerValueMap[name + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
+                                if (registerValueMap.contains(baseName + reg32BitLaneStrs[i])) {
+                                    tempMap[baseName + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
                                 }
                             }
                             useSecondVal = false;
@@ -166,8 +172,8 @@ void updateRegs(bool useTempContext){
                     else if (registerValue.info.is512bit) {
                        if (!use32BitLanes){
                             for (int i = 0; i < 8; i++){
-                                if (registerValueMap.contains(name + reg64BitLaneStrs[i])) {
-                                    registerValueMap[name + reg64BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.doubleArray[i]);
+                                if (registerValueMap.contains(baseName + reg64BitLaneStrs[i])) {
+                                    tempMap[baseName + reg64BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.doubleArray[i]);
                                 }
                             }
                             hex.str("");
@@ -176,8 +182,8 @@ void updateRegs(bool useTempContext){
                         }
                        else{
                             for (int i = 0; i < 16; i++){
-                                if (registerValueMap.contains(name + reg32BitLaneStrs[i])) {
-                                    registerValueMap[name + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
+                                if (registerValueMap.contains(baseName + reg32BitLaneStrs[i])) {
+                                    tempMap[baseName + reg32BitLaneStrs[i]] = std::to_string(registerValue.info.arrays.floatArray[i]);
                                 }
                             }
                             useSecondVal = false;
@@ -193,10 +199,13 @@ void updateRegs(bool useTempContext){
             hex << "0x00";
         }
 
-        registerValueMap[name] = hex.str();
+        tempMap[lowerName] = hex.str();
         hex.str("");
         hex.clear();
     }
+
+    // Update the main map with the temporary map
+    registerValueMap = std::move(tempMap);
 }
 
 std::vector<std::string> parseRegisters(std::string registerString){
@@ -212,7 +221,7 @@ std::vector<std::string> parseRegisters(std::string registerString){
 
     registers.resize(registerCount);
 
-    for (auto c: registerString){
+    for (const auto c: registerString){
         if (c != ',' && c != ' '){
             registers[index] += c;
         }
@@ -230,7 +239,7 @@ int decimalCallback(ImGuiInputTextCallbackData* data) {
     {
         if (data->EventChar < 256)
         {
-            char c = static_cast<char>(data->EventChar);
+            const char c = static_cast<char>(data->EventChar);
             if (isdigit(c) || c == '.')
             {
                 return 0; // Allow the character
@@ -331,7 +340,7 @@ contextMenuOption registerContextMenu(){
                 removeRegisterFromView(hoveredReg, 3);
             }
             else{
-                auto id = registerValueMap.find(hoveredReg);
+                const auto id = registerValueMap.find(hoveredReg);
                 if (id != registerValueMap.end()){
                     registerValueMap.erase(id);
                 }
@@ -409,61 +418,130 @@ bool isRegisterWithLaneShown(const char* regName, const uint8_t regSize) {
     return false;
 }
 
-void addRegisterToView(const std::string& reg, const registerValueInfoT& registerInfo) {
-    std::string regValue{};
+std::vector<std::string> add256BitRegister(const std::string& regName, const registerValueInfoT& registerInfo)
+{
+    std::vector<std::string> regValues{};
+    const size_t size = regInfoMap[regName];
+    if (use32BitLanes){
+        for (const float i : registerInfo.registerValueUn.info.arrays.floatArray){
+            regValues.push_back(std::to_string(i));
+        }
+    }
+    else{
+        for (const double i : registerInfo.registerValueUn.info.arrays.doubleArray){
+            regValues.push_back(std::to_string(i));
+        }
+    }
+
+    return regValues;
+}
+
+
+std::vector<std::string> add128BitRegister(const std::string& regName, const registerValueInfoT& registerInfo)
+{
+    std::vector<std::string> regValues{};
+    const size_t size = regInfoMap[regName];
+
+    for (int i = 0; i < (use32BitLanes ? 4 : 2); i++)
+    {
+        regValues.push_back(std::to_string(use32BitLanes ? registerInfo.registerValueUn.info.arrays.floatArray[i] : registerInfo.registerValueUn.info.arrays.doubleArray[i]));
+    }
+    return regValues;
+}
+
+std::vector<std::string> x86AddRegister(const std::string& regName, const registerValueInfoT& registerInfo)
+{
+    std::vector<std::string> regValues{};
+    const size_t size = regInfoMap[regName];
+
+    if (regInfoMap[regName] <= 64){
+        regValues.push_back(std::to_string(registerInfo.registerValueUn.eightByteVal));
+        return regValues;
+    }
+    else if (regInfoMap[regName] == 128 ){
+        return add128BitRegister(regName, registerInfo);
+    }
+    else if (regInfoMap[regName] == 256)
+    {
+        return add256BitRegister(regName, registerInfo);
+    }
+
+    return regValues;
+}
+
+std::vector<std::string> armRegisterValue(const std::string& regName, const registerValueInfoT& registerInfo)
+{
+    std::vector<std::string> regValues{};
+    const size_t size = regInfoMap[regName];
+
+    if (size == 32)
+    {
+        if (vfpRegs.contains(regName))
+        {
+            regValues.push_back(std::to_string(registerInfo.registerValueUn.floatVal));
+        }
+        else
+        {
+            regValues.push_back(std::to_string(registerInfo.registerValueUn.eightByteVal));
+        }
+
+        return regValues;
+    }
+    else if (size == 64)
+    {
+        if (dRegs.contains(regName))
+        {
+            regValues.push_back(std::to_string(registerInfo.registerValueUn.floatVal));
+        }
+        else
+        {
+            regValues.push_back(std::to_string(registerInfo.registerValueUn.eightByteVal));
+        }
+
+        return regValues;
+    }
+    else if (size == 128)
+    {
+        return add128BitRegister(regName, registerInfo);
+    }
+    else if (size == 256)
+    {
+        return add256BitRegister(regName, registerInfo);
+    }
+
+    return regValues;
+}
+
+void addRegisterToView(std::string reg, const registerValueInfoT& registerInfo) {
+    // std::string regValue{};
     std::vector<std::string> regValues{};
     bool isRegPresent = false;
+    reg = toLowerCase(reg);
 
-
-
-    if (regInfoMap[reg] <= 64){
-        regValue= std::to_string(registerInfo.registerValueUn.eightByteVal);
+    if (codeInformation.archIC == IC_ARCH_AARCH64 || codeInformation.archIC == IC_ARCH_ARM)
+    {
+        regValues = armRegisterValue(reg, registerInfo);
     }
-    else if (regInfoMap[reg] == 128 ){
-        for (int i = 0; i < (use32BitLanes ? 4 : 2); i++){
-            regValues.push_back(std::to_string(use32BitLanes ? registerInfo.registerValueUn.info.arrays.floatArray[i] : registerInfo.registerValueUn.info.arrays.doubleArray[i]));
-        }
-
-        regValue = regValues[0];
+    else if (codeInformation.archIC == IC_ARCH_I386 || codeInformation.archIC == IC_ARCH_X86_64)
+    {
+        regValues = x86AddRegister(reg, registerInfo);
     }
-    else if (regInfoMap[reg] == 256) {
-        if (use32BitLanes) {
-            for (const float i: registerInfo.registerValueUn.info.arrays.floatArray) {
-                regValues.push_back(std::to_string(i));
-            }
-        } else {
-            for (const double i: registerInfo.registerValueUn.info.arrays.doubleArray) {
-                regValues.push_back(std::to_string(i));
-            }
-        }
 
-        regValue = regValues[0];
-    } else if (regInfoMap[reg] == 512) {
-        if (use32BitLanes){
-            for (const float i : registerInfo.registerValueUn.info.arrays.floatArray){
-                regValues.push_back(std::to_string(i));
-            }
-        }
-        else{
-            for (const double i : registerInfo.registerValueUn.info.arrays.doubleArray){
-                regValues.push_back(std::to_string(i));
-            }
-        }
-
-        regValue = regValues[0];
-    }
-    else if (regInfoMap[reg] == 80){
+    if (regInfoMap[reg] == 80){
         LOG_ERROR("ST* registers are not supported yet!");
         return;
     }
 
     LOG_DEBUG("Adding the register " << reg);
-     if (regValue == "0"){
-    // code for saving register's value
-        regValue = "0x00";
+     if (regValues.empty()){
+        registerValueMap[reg] = "0x00";
     }
 
-    if (registerInfo.registerValueUn.info.is128bit){
+    if (registerInfo.registerValueUn.info.isFloatReg || registerInfo.registerValueUn.info.isDoubleReg)
+    {
+        registerValueMap[reg] = std::to_string(registerInfo.registerValueUn.floatVal);
+    }
+    else if (registerInfo.registerValueUn.info.is128bit){
         if (!use32BitLanes){
             for (int j = 0; j < 2; j++){
                 registerValueMap[reg + reg64BitLaneStrs[j]] = regValues[j];
@@ -499,9 +577,6 @@ void addRegisterToView(const std::string& reg, const registerValueInfoT& registe
             }
         }
     }
-    else{
-        registerValueMap[reg] = regValue;
-    }
 }
 
  void registerCommandsUI() {
@@ -535,8 +610,7 @@ void addRegisterToView(const std::string& reg, const registerValueInfoT& registe
             auto regInfo = getRegister(reg);
             reg = (reg);
 
-
-            if (regInfoMap[reg]> 64){
+            if (regInfoMap[reg] > 64){
                 isRegPresent = isRegisterWithLaneShown(reg.c_str(), regInfoMap[reg]);
             }
 
@@ -610,7 +684,7 @@ void parseRegisterValueInput(const std::string& regName, const char *regValueFir
 
         if (codeHasRun)
         {
-            if (isBigReg){
+            if (isBigReg && regName.contains('[') && regName.contains(']') && regName.contains(':')){
                 const std::string realRegName = regName.substr(0, regName.find_first_of('['));
                 const std::string laneStr = regName.substr(regName.find_first_of('[') + 1);
                 
@@ -619,14 +693,14 @@ void parseRegisterValueInput(const std::string& regName, const char *regValueFir
                 const auto value = std::string(regValueFirst);
 
                 if (value.contains('.')){
-                    int regSize = getRegisterActualSize(regName);
+                    const int regSize = getRegisterActualSize(regName);
                     if (regSize == 128 || regSize == 256 || regSize == 512) {
                         int laneIndex = 0;
 
                         if (!use32BitLanes){
                             // For 64-bit lanes: XMM(0,1), YMM(0-3), ZMM(0-7)
                             laneIndex = laneStart / 64;
-                            int maxLanes = (regSize == 128) ? 2 : (regSize == 256) ? 4 : 8;
+                            const int maxLanes = (regSize == 128) ? 2 : (regSize == 256) ? 4 : 8;
                             
                             // Ensure index is within bounds
                             if (laneIndex >= 0 && laneIndex < maxLanes) {
@@ -644,7 +718,7 @@ void parseRegisterValueInput(const std::string& regName, const char *regValueFir
                                 regValue.info.arrays.doubleArray[laneIndex] = val;
                                 
                                 // Write back the register
-                                bool success = setRegisterValue(realRegName, regValue);
+                                const bool success = setRegisterValue(realRegName, regValue);
                                 if (!success) {
                                     LOG_ERROR("Failed to write value to register " << realRegName << " lane " << laneIndex);
                                 }
@@ -656,7 +730,7 @@ void parseRegisterValueInput(const std::string& regName, const char *regValueFir
                         else {
                             // For 32-bit lanes: XMM(0-3), YMM(0-7), ZMM(0-15)
                             laneIndex = laneStart / 32;
-                            int maxLanes = (regSize == 128) ? 4 : (regSize == 256) ? 8 : 16;
+                            const int maxLanes = (regSize == 128) ? 4 : (regSize == 256) ? 8 : 16;
                             
                             // Ensure index is within bounds
                             if (laneIndex >= 0 && laneIndex < maxLanes) {
@@ -687,7 +761,25 @@ void parseRegisterValueInput(const std::string& regName, const char *regValueFir
                 }
             }
             else{
-                icicle_reg_write_bytes(icicle, regName.c_str(), (uint8_t*)&temp, sizeof(temp));
+                auto val = getRegisterValue(regName);
+                if (val.info.isFloatReg)
+                {
+                    val.floatVal = (float)temp;
+                }
+                else if (val.info.isDoubleReg)
+                {
+                    val.doubleVal = (float)temp;
+                }
+                else
+                {
+                    val.eightByteVal = temp;
+                }
+                // int res = icicle_reg_write_bytes(icicle, regName.c_str(), (uint8_t*)&temp, sizeof(temp));
+                const bool res = setRegisterValue(regName, val);
+                if (!res)
+                {
+                    LOG_ALERT("fuck");
+                }
                 saveICSnapshot(icicle);
             }
         }
@@ -744,7 +836,7 @@ void registerWindow() {
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + spacing);
             ImGui::PushID(index);
 
-            if (ImGui::Selectable(regValMapInfo->first.c_str(), false)) {
+            if (ImGui::Selectable(toUpperCase(regValMapInfo->first).c_str(), false)) {
                 hoveredReg = regValMapInfo->first;
             }
 
@@ -763,7 +855,7 @@ void registerWindow() {
             ImGui::PushID(index * 2);
             ImGui::SetNextItemWidth(-FLT_MIN);
 
-            bool isBigReg = getRegisterActualSize(regValMapInfo->first) > 64;
+            bool isBigReg = getRegisterActualSize(regValMapInfo->first) > 64 || (getRegister(regValMapInfo->first).registerValueUn.info.isFloatReg || getRegister(regValMapInfo->first).registerValueUn.info.isFloatReg);
             constexpr ImGuiTextFlags flags = ImGuiInputTextFlags_CallbackCharFilter;
 
             if (registerContextMenu() == REGISTER_HIDDEN) {
@@ -788,7 +880,7 @@ void registerWindow() {
             ImGui::TableSetColumnIndex(2);
             ImGui::PushID(index + 3 * 4);
 
-            if (ImGui::Selectable(regValMapInfo->first.c_str(), false)) {
+            if (ImGui::Selectable(toUpperCase(regValMapInfo->first).c_str(), false)) {
                 hoveredReg = regValMapInfo->first;
             }
 
@@ -809,7 +901,7 @@ void registerWindow() {
                 regValMapInfo = registerValueMap.begin();
             }
 
-            isBigReg = getRegisterActualSize(regValMapInfo->first) > 64;
+            isBigReg = getRegisterActualSize(regValMapInfo->first) > 64 || (getRegister(regValMapInfo->first).registerValueUn.info.isFloatReg || getRegister(regValMapInfo->first).registerValueUn.info.isFloatReg);
             int (*callback2)(ImGuiInputTextCallbackData* data) = isBigReg ? decimalCallback: checkHexCharsCallback;
 
             if (ImGui::InputText(("##regValueSecond" + std::to_string(index)).c_str(), regValueSecond, IM_ARRAYSIZE(regValueSecond), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_EnterReturnsTrue | flags, callback2)) {

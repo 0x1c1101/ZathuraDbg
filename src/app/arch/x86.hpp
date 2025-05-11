@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <unicorn/unicorn.h>
 #include <vector>
+#include <unordered_set>
 
 #include "arch.hpp"
 extern std::vector<std::string> x86DefaultShownRegs;
