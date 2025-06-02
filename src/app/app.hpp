@@ -30,7 +30,10 @@
 #include "../../vendor/json/json.hpp"
 #include <capstone/capstone.h>
 #include "actions/actions.hpp"
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include <http.hpp>
 using json = nlohmann::json;
+constexpr std::string VERSION = "1.0";
 #define CONFIG_NAME "config"
 
 std::string parseVals(std::string val);
@@ -47,4 +50,6 @@ extern float frameRate;
 extern std::string executablePath;
 extern bool isRunning;
 extern TextEditor::LanguageDefinitionId currentDefinitionId;
+extern std::string currentVersion;
+extern std::string getLatestVersion();
 #endif //ZATHURA_UI_APP_HPP
